@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="lib" path="lib/SDK_4_7_0/JAVA/WIN32/CAENRFIDLibrary.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="lib/SDK_4_7_0/JAVA/WIN32/javadoc/"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="lib/SDK_4_7_0/JAVA/WIN32/lib/RXTXcomm.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
