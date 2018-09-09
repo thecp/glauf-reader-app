@@ -1,26 +1,36 @@
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.util.ArrayList;
 import java.util.List;
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.sql.Connection;
-import com.caen.RFIDLibrary.*;
+
+import com.caen.RFIDLibrary.CAENRFIDLogicalSource;
+import com.caen.RFIDLibrary.CAENRFIDPort;
+import com.caen.RFIDLibrary.CAENRFIDReader;
+import com.caen.RFIDLibrary.CAENRFIDTag;
 
 public class ReaderThread implements Runnable {
 
 	public CAENRFIDReader myReader;
-	
+
 	private int seconds;
-	
+
+	private ReaderExceptionHandler readerExceptionHandler;
+
 	private Connection conn;
-	
+
 	private List<Integer> knownIds = new ArrayList<Integer>();
-	
+
 	public void setTime(int seconds) {
 		this.seconds = seconds;
 	}
-	
+
+	public void addListener(ReaderExceptionHandler listener) {
+		this.readerExceptionHandler = listener;
+	}
+
 	private int getIdValue(byte[] id) {
 		int i = 0;
 		try {
@@ -31,40 +41,39 @@ public class ReaderThread implements Runnable {
 				}
 				i += (Math.pow(100, id.length - j - 1)) * Integer.valueOf(hex);
 			}
-		} catch(Exception e) {
+		} catch (Exception e) {
 			i = 0;
 		}
 		return i;
 	}
-	
+
 	private void writeIntoDB(int chipID) {
 		if (this.seconds == 0) {
 			return;
 		}
 		try {
 			PreparedStatement stmt = this.conn.prepareStatement(
-				"UPDATE starters SET insertTime=NOW(), seconds=? WHERE chipId=? AND seconds IS NULL;"
-			);
+					"UPDATE starters SET insertTime=NOW(), seconds=? WHERE chipId=? AND seconds IS NULL;");
 			stmt.setInt(1, this.seconds);
 			stmt.setInt(2, chipID);
 			stmt.executeUpdate();
-		} catch(Exception e) {
-			System.out.println("Konnte nicht in Datenbank speichern: " + chipID);
+		} catch (Exception e) {
+			this.readerExceptionHandler.onReaderException(e);
 		}
 	}
-	
+
 	private void openDBConnection() {
-		String url = "jdbc:mysql://localhost:3306/zmt";
-		String user = "root";
+		String url = "jdbc:mysql://localhost:3306/zmt?verifyServerCertificate=false&useSSL=true&serverTimezone=Europe/Berlin";
+		String user = "admin";
 		String password = "7911640";
 		try {
-			Class.forName("com.mysql.jdbc.Driver").newInstance();
+			Class.forName("com.mysql.cj.jdbc.Driver").newInstance();
 			this.conn = DriverManager.getConnection(url, user, password);
-		} catch(Exception e) {
-			System.out.println("Keine Verbindung zu MySQL möglich");
+		} catch (Exception e) {
+			this.readerExceptionHandler.onReaderException(e);
 		}
 	}
-	
+
 	private void writeIntoFile(int chipId) {
 		try {
 			BufferedWriter bw = new BufferedWriter(new FileWriter("backup.tmp", true));
@@ -73,43 +82,43 @@ public class ReaderThread implements Runnable {
 			bw.flush();
 			bw.close();
 		} catch (Exception e) {
-			System.out.println("Konnte Daten nicht in Datei schreiben!");
+			this.readerExceptionHandler.onReaderException(e);
 		}
 	}
-	
+
 	public void run() {
 
 		this.openDBConnection();
-		
+
 		try {
-		
+
 			this.myReader = new CAENRFIDReader();
-		
+
 			myReader.Connect(CAENRFIDPort.CAENRFID_TCP, "192.168.0.7:23");
-			
+
 //			myReader.addCAENRFIDEventListener(new EventListener());
 //			
 //			CAENRFIDLogicalSource[] sources = myReader.GetSources();
-			
+
 //			byte[] mask = new byte[] {};
 //			short maskLength = 0;
 //			short position = 0;
 //			short flag = 0x0E;
-			
+
 			CAENRFIDTag[] MyTags;
 			CAENRFIDLogicalSource source = myReader.GetSource("Source_0");
-			
+
 			source.SetQ_EPC_C1G2(2);
-			
+
 //			String[] readPoints = myReader.GetReadPoints();
 //			for (int i = 0; i < readPoints.length; ++i) {
 //				CAENRFIDReadPointStatus r = myReader.GetReadPointStatus(readPoints[i]);
 //				System.out.println();
 //			}
-			
+
 //			source.addCAENRFIDEventListener(new MyEventListener());
 //			source.EventInventoryTag(mask, maskLength, position, flag);
-		
+
 			while (true) {
 				MyTags = source.InventoryTag();
 				if (MyTags != null && this.seconds != 0) {
@@ -119,21 +128,19 @@ public class ReaderThread implements Runnable {
 							continue;
 						}
 						int chipID = this.getIdValue(id);
-						if (!this.knownIds.contains(chipID)) {
-							this.knownIds.add(chipID);
-						} else {
+						if (this.knownIds.contains(chipID)) {
 							continue;
 						}
-						System.out.println(chipID);
+						this.knownIds.add(chipID);
 						this.writeIntoFile(chipID);
 						this.writeIntoDB(chipID);
 					}
 				}
-				Thread.sleep(100);
+				Thread.sleep(100); // TODO shorten this? let the reader push info?
 			}
-			
-		} catch(Exception e) {
-			System.out.println(e);
+
+		} catch (Exception e) {
+			this.readerExceptionHandler.onReaderException(e);
 		}
 	}
 }

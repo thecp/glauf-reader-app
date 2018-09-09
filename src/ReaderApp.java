@@ -1,50 +1,38 @@
 import java.util.Timer;
-import java.util.TimerTask;
 
-public class ReaderApp implements UpdateTimeListener, TimerListener {
+public class ReaderApp implements UpdateTimeListener, TimerListener, ReaderExceptionHandler {
 	
 	int seconds = 0;
 	private Window window;
 	private ReaderThread reader;
 	
-	public void startTimer(int seconds) {
+	private RTimerTask timerTask;
+	private Timer timer;
 
-		class MyTimerTask extends TimerTask {
-			UpdateTimeListener listener;
-			private int time = 0;
-			
-			public void init(int seconds) {
-				if (this.time == 0) {
-					this.time = seconds;
-				}
-			}
-			
-			@Override
-			public void run() {
-				this.time++;
-				if (this.listener != null) {
-					this.listener.updateTime(this.time);
-				}
-			}
-			
-			public void addListener(UpdateTimeListener listener) {
-				this.listener = listener;
-			}
-		};
-		
-		Timer timer = new Timer();
-		MyTimerTask timerTask = new  MyTimerTask();
-		timerTask.init(seconds);
-		timerTask.addListener(this);
-		timer.schedule(timerTask, 1000, 1000);
+	public void startTimer(int seconds) {
+		this.timerTask = new RTimerTask();
+		this.timerTask.addListener(this);
+		this.timerTask.init(seconds);
+		this.timer = new Timer();
+		this.timer.schedule(timerTask, 1000, 1000);
+	}
+
+	public void pauseTimer() {
+		this.timer.cancel();
+		this.timer.purge();
+	}
+
+	public void resetTimer() {
+		this.seconds = 0;
+		this.updateTime(0);
 	}
 	
 	public ReaderApp() {
-		
 		this.window = new Window();
 		this.window.addListener(this);
 		
 		this.reader = new ReaderThread();
+		this.reader.addListener(this);
 		
 		Thread t = new Thread(this.reader);
 		t.start();
@@ -53,5 +41,9 @@ public class ReaderApp implements UpdateTimeListener, TimerListener {
 	public void updateTime(int t) {
 		this.window.setTime(t);
 		this.reader.setTime(t);
+	}
+
+	public void onReaderException(Exception e) {
+		this.window.showMessage(e.getMessage());
 	}
 }

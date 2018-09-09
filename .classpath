@@ -8,5 +8,6 @@
 		</attributes>
 	</classpathentry>
 	<classpathentry kind="lib" path="lib/SDK_4_7_0/JAVA/WIN32/lib/RXTXcomm.jar"/>
+	<classpathentry kind="lib" path="lib/mysql-connector-java.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
