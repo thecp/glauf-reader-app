@@ -1,13 +1,19 @@
+import java.util.List;
 import java.util.Timer;
 
-public class ReaderApp implements UpdateTimeListener, TimerListener, ReaderExceptionHandler {
-	
+import com.github.sarxos.webcam.Webcam;
+
+public class ReaderApp implements UpdateTimeListener, TimerListener, CaptureListener, ReaderExceptionHandler {
+
 	int seconds = 0;
 	private Window window;
-	private ReaderThread reader;
-	
+	private ReaderThread readerThread;
+	private CaptureThread captureThread;
+
 	private RTimerTask timerTask;
 	private Timer timer;
+
+	private List<Webcam> webcams;
 
 	public void startTimer(int seconds) {
 		this.timerTask = new RTimerTask();
@@ -26,21 +32,39 @@ public class ReaderApp implements UpdateTimeListener, TimerListener, ReaderExcep
 		this.seconds = 0;
 		this.updateTime(0);
 	}
-	
-	public ReaderApp() {
-		this.window = new Window();
-		this.window.addListener(this);
-		
-		this.reader = new ReaderThread();
-		this.reader.addListener(this);
-		
-		Thread t = new Thread(this.reader);
-		t.start();
+
+	public void startCapture(Webcam w) {
+		this.captureThread.setCam(w);
+		this.captureThread.start();
 	}
-	
+
+	public void stopCapture() {
+		this.captureThread.stop();
+	}
+
+	public ReaderApp() {
+
+		this.window = new Window();
+		this.window.addListener(this, this);
+
+		this.webcams = Webcam.getWebcams();
+		this.window.setCams(this.webcams);
+
+		this.readerThread = new ReaderThread();
+		this.readerThread.addListener(this);
+
+		Thread rt = new Thread(this.readerThread);
+		rt.start();
+
+		this.captureThread = new CaptureThread();
+		Thread ct = new Thread(this.captureThread);
+		ct.start();
+	}
+
 	public void updateTime(int t) {
 		this.window.setTime(t);
-		this.reader.setTime(t);
+		this.readerThread.setTime(t);
+		this.captureThread.updateTime(t);
 	}
 
 	public void onReaderException(Exception e) {

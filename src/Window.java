@@ -1,10 +1,14 @@
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.List;
 
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.JTextField;
+
+import com.github.sarxos.webcam.Webcam;
 
 public class Window implements ActionListener {
 
@@ -14,34 +18,56 @@ public class Window implements ActionListener {
 	public JButton pauseTimerButton;
 	public JButton resetTimerButton;
 
+	public JComboBox webcams;
+	public JButton startCaptureButton;
+	public JButton stopCaptureButton;
+
 	public TimerListener timerListener;
+
+	public CaptureListener captureListener;
 
 	private int seconds = 0;
 
-	public void addListener(TimerListener listener) {
+	public void addListener(TimerListener listener, CaptureListener captureListener) {
 		this.timerListener = listener;
+		this.captureListener = captureListener;
 	}
 
 	public Window() {
 		this.frame = new JFrame();
 
 		this.startTimerButton = new JButton("Start Timer");
-		this.startTimerButton.setBounds(130, 100, 120, 40);
+		this.startTimerButton.setBounds(80, 100, 120, 40);
 		this.startTimerButton.addActionListener(this);
 		this.frame.add(this.startTimerButton);
 
 		this.pauseTimerButton = new JButton("Pause Timer");
-		this.pauseTimerButton.setBounds(260, 100, 120, 40);
+		this.pauseTimerButton.setBounds(210, 100, 120, 40);
 		this.pauseTimerButton.addActionListener(this);
 		this.frame.add(this.pauseTimerButton);
 
 		this.resetTimerButton = new JButton("Reset Timer");
-		this.resetTimerButton.setBounds(390, 100, 120, 40);
+		this.resetTimerButton.setBounds(340, 100, 120, 40);
 		this.resetTimerButton.addActionListener(this);
 		this.frame.add(this.resetTimerButton);
 
+		this.webcams = new JComboBox();
+		this.webcams.addActionListener(this);
+		this.webcams.setBounds(550, 100, 120, 40);
+		this.frame.add(this.webcams);
+
+		this.startCaptureButton = new JButton("Start Capture");
+		this.startCaptureButton.setBounds(680, 100, 120, 40);
+		this.startCaptureButton.addActionListener(this);
+		this.frame.add(this.startCaptureButton);
+
+		this.stopCaptureButton = new JButton("Stop Capture");
+		this.stopCaptureButton.setBounds(810, 100, 120, 40);
+		this.stopCaptureButton.addActionListener(this);
+		this.frame.add(this.stopCaptureButton);
+
 		this.timeText = new JTextField(this.seconds + "");
-		this.timeText.setBounds(130, 200, 100, 40);
+		this.timeText.setBounds(80, 200, 100, 40);
 		this.frame.add(this.timeText);
 
 		this.frame.setSize(1024, 800);
@@ -66,6 +92,12 @@ public class Window implements ActionListener {
 		if (ae.getSource() == this.resetTimerButton) {
 			this.timerListener.resetTimer();
 		}
+		if (ae.getSource() == this.startCaptureButton) {
+			this.captureListener.startCapture((Webcam) this.webcams.getSelectedItem());
+		}
+		if (ae.getSource() == this.stopCaptureButton) {
+			this.captureListener.stopCapture();
+		}
 	}
 
 	public void setTime(int seconds) {
@@ -75,5 +107,11 @@ public class Window implements ActionListener {
 
 	public void showMessage(String msg) {
 		JOptionPane.showMessageDialog(null, msg);
+	}
+
+	public void setCams(List<Webcam> webcams) {
+		for (int i = 0; i < webcams.size(); i++) {
+			this.webcams.addItem(webcams.get(i));
+		}
 	}
 }

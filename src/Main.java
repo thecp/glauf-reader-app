@@ -1,9 +1,17 @@
+import com.github.sarxos.webcam.Webcam;
+
 interface TimerListener {
 	void startTimer(int t);
 
 	void pauseTimer();
 
 	void resetTimer();
+}
+
+interface CaptureListener {
+	void startCapture(Webcam w);
+
+	void stopCapture();
 }
 
 interface UpdateTimeListener {
