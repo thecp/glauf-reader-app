@@ -3,7 +3,7 @@ import java.util.Timer;
 
 import com.github.sarxos.webcam.Webcam;
 
-public class ReaderApp implements UpdateTimeListener, TimerListener, CaptureListener, ReaderExceptionHandler {
+public class ReaderApp implements AppListener, UpdateTimeListener, ReaderExceptionHandler {
 
 	int seconds = 0;
 	private Window window;
@@ -45,7 +45,7 @@ public class ReaderApp implements UpdateTimeListener, TimerListener, CaptureList
 	public ReaderApp() {
 
 		this.window = new Window();
-		this.window.addListener(this, this);
+		this.window.addListener(this);
 
 		this.webcams = Webcam.getWebcams();
 		this.window.setCams(this.webcams);
@@ -69,5 +69,16 @@ public class ReaderApp implements UpdateTimeListener, TimerListener, CaptureList
 
 	public void onReaderException(Exception e) {
 		this.window.showMessage(e.getMessage());
+	}
+
+	public void addResult(int rfid, String result) {
+		this.window.addResult(rfid, result);
+	}
+
+	public void exit() {
+		System.out.println("shutdown");
+		this.readerThread.shutdown();
+		this.captureThread.shutdown();
+		System.exit(0);
 	}
 }

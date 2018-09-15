@@ -6,7 +6,10 @@ import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
+import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableModel;
 
 import com.github.sarxos.webcam.Webcam;
 
@@ -18,19 +21,19 @@ public class Window implements ActionListener {
 	public JButton pauseTimerButton;
 	public JButton resetTimerButton;
 
-	public JComboBox webcams;
+	public JComboBox<Webcam> webcams;
 	public JButton startCaptureButton;
 	public JButton stopCaptureButton;
 
-	public TimerListener timerListener;
+	public JTable resultTable;
+	private TableModel resultTableModel;
 
-	public CaptureListener captureListener;
+	public AppListener app;
 
 	private int seconds = 0;
 
-	public void addListener(TimerListener listener, CaptureListener captureListener) {
-		this.timerListener = listener;
-		this.captureListener = captureListener;
+	public void addListener(AppListener app) {
+		this.app = app;
 	}
 
 	public Window() {
@@ -51,7 +54,7 @@ public class Window implements ActionListener {
 		this.resetTimerButton.addActionListener(this);
 		this.frame.add(this.resetTimerButton);
 
-		this.webcams = new JComboBox();
+		this.webcams = new JComboBox<Webcam>();
 		this.webcams.addActionListener(this);
 		this.webcams.setBounds(550, 100, 120, 40);
 		this.frame.add(this.webcams);
@@ -70,9 +73,26 @@ public class Window implements ActionListener {
 		this.timeText.setBounds(80, 200, 100, 40);
 		this.frame.add(this.timeText);
 
+		this.resultTableModel = new DefaultTableModel(new String[][] {}, new String[] { "rfid", "result" });
+		this.resultTable = new JTable(this.resultTableModel);
+		this.resultTable.setBounds(550, 250, 380, 400);
+		this.frame.add(this.resultTable);
+
 		this.frame.setSize(1024, 800);
 		this.frame.setLayout(null);
 		this.frame.setVisible(true);
+
+		this.frame.addWindowListener(new java.awt.event.WindowAdapter() {
+			@Override
+			public void windowClosing(java.awt.event.WindowEvent windowEvent) {
+				if (JOptionPane.showConfirmDialog(frame, "Möchtest du das Programm wirklich beenden?",
+						"Programm beenden", JOptionPane.YES_NO_OPTION,
+						JOptionPane.QUESTION_MESSAGE) == JOptionPane.YES_OPTION) {
+					System.exit(0);
+				}
+			}
+		});
+		this.frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
 	}
 
 	public void actionPerformed(ActionEvent ae) {
@@ -81,22 +101,23 @@ public class Window implements ActionListener {
 				try {
 					this.seconds = Integer.parseInt(this.timeText.getText());
 				} catch (Exception e) {
+
 					this.seconds = 0;
 				}
-				this.timerListener.startTimer(this.seconds);
+				this.app.startTimer(this.seconds);
 			}
 		}
 		if (ae.getSource() == this.pauseTimerButton) {
-			this.timerListener.pauseTimer();
+			this.app.pauseTimer();
 		}
 		if (ae.getSource() == this.resetTimerButton) {
-			this.timerListener.resetTimer();
+			this.app.resetTimer();
 		}
 		if (ae.getSource() == this.startCaptureButton) {
-			this.captureListener.startCapture((Webcam) this.webcams.getSelectedItem());
+			this.app.startCapture((Webcam) this.webcams.getSelectedItem());
 		}
 		if (ae.getSource() == this.stopCaptureButton) {
-			this.captureListener.stopCapture();
+			this.app.stopCapture();
 		}
 	}
 
@@ -113,5 +134,10 @@ public class Window implements ActionListener {
 		for (int i = 0; i < webcams.size(); i++) {
 			this.webcams.addItem(webcams.get(i));
 		}
+	}
+
+	public void addResult(int rfid, String result) {
+		DefaultTableModel model = (DefaultTableModel) this.resultTable.getModel();
+		model.addRow(new String[] { Integer.toString(rfid), result });
 	}
 }

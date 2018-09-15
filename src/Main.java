@@ -1,17 +1,19 @@
 import com.github.sarxos.webcam.Webcam;
 
-interface TimerListener {
+interface AppListener extends ReaderExceptionHandler {
 	void startTimer(int t);
 
 	void pauseTimer();
 
 	void resetTimer();
-}
 
-interface CaptureListener {
 	void startCapture(Webcam w);
 
 	void stopCapture();
+
+	void exit();
+
+	void addResult(int rfid, String result);
 }
 
 interface UpdateTimeListener {
@@ -25,6 +27,11 @@ interface ReaderExceptionHandler {
 public class Main {
 
 	public static void main(String[] args) {
-		new ReaderApp();
+		ReaderApp readerApp = new ReaderApp();
+		Runtime.getRuntime().addShutdownHook(new Thread() {
+			public void run() {
+				readerApp.exit();
+			}
+		});
 	}
 }
