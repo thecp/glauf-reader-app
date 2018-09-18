@@ -1,3 +1,5 @@
+import java.io.IOException;
+import java.net.ServerSocket;
 import java.util.List;
 import java.util.Timer;
 
@@ -13,6 +15,8 @@ public class ReaderApp implements AppListener, UpdateTimeListener, ReaderExcepti
 	private RTimerTask timerTask;
 	private Timer timer;
 
+	private ServerSocket socket;
+
 	private List<Webcam> webcams;
 
 	public void startTimer(int seconds) {
@@ -20,7 +24,7 @@ public class ReaderApp implements AppListener, UpdateTimeListener, ReaderExcepti
 		this.timerTask.addListener(this);
 		this.timerTask.init(seconds);
 		this.timer = new Timer();
-		this.timer.schedule(timerTask, 1000, 1000);
+		this.timer.scheduleAtFixedRate(timerTask, 1000, 1000);
 	}
 
 	public void pauseTimer() {
@@ -43,6 +47,13 @@ public class ReaderApp implements AppListener, UpdateTimeListener, ReaderExcepti
 	}
 
 	public ReaderApp() {
+
+		try {
+			this.socket = new ServerSocket(11333);
+		} catch (IOException e) {
+			// port already used: exit application
+			this.exit();
+		}
 
 		this.window = new Window();
 		this.window.addListener(this);
@@ -76,6 +87,11 @@ public class ReaderApp implements AppListener, UpdateTimeListener, ReaderExcepti
 	}
 
 	public void exit() {
+		try {
+			this.socket.close();
+		} catch (IOException e) {
+			System.out.println(e.getMessage());
+		}
 		System.out.println("shutdown");
 		this.readerThread.shutdown();
 		this.captureThread.shutdown();

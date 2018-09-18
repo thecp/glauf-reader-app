@@ -152,6 +152,9 @@ public class ReaderThread implements Runnable {
 	private void readTags() {
 		CAENRFIDTag[] rfidTags;
 		try {
+			if (this.source == null) {
+				return;
+			}
 			rfidTags = this.source.InventoryTag();
 			if (rfidTags != null && this.seconds != 0) {
 				for (int i = 0; i < rfidTags.length; ++i) {

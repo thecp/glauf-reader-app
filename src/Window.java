@@ -6,6 +6,7 @@ import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
+import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.table.DefaultTableModel;
@@ -25,6 +26,7 @@ public class Window implements ActionListener {
 	public JButton startCaptureButton;
 	public JButton stopCaptureButton;
 
+	public JScrollPane scrollPane;
 	public JTable resultTable;
 	private TableModel resultTableModel;
 
@@ -75,8 +77,11 @@ public class Window implements ActionListener {
 
 		this.resultTableModel = new DefaultTableModel(new String[][] {}, new String[] { "rfid", "result" });
 		this.resultTable = new JTable(this.resultTableModel);
-		this.resultTable.setBounds(550, 250, 380, 400);
-		this.frame.add(this.resultTable);
+
+		this.scrollPane = new JScrollPane(this.resultTable);
+		this.scrollPane.setBounds(550, 250, 380, 400);
+		this.resultTable.setFillsViewportHeight(true);
+		this.frame.add(this.scrollPane);
 
 		this.frame.setSize(1024, 800);
 		this.frame.setLayout(null);
@@ -137,7 +142,11 @@ public class Window implements ActionListener {
 	}
 
 	public void addResult(int rfid, String result) {
-		DefaultTableModel model = (DefaultTableModel) this.resultTable.getModel();
-		model.addRow(new String[] { Integer.toString(rfid), result });
+		try {
+			DefaultTableModel model = (DefaultTableModel) this.resultTable.getModel();
+			model.addRow(new String[] { Integer.toString(rfid), result });
+		} catch (Exception e) {
+			this.showMessage(e.getMessage());
+		}
 	}
 }

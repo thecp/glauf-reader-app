@@ -69,6 +69,7 @@ public class CaptureThread implements Runnable {
 	}
 
 	private String getFileName() {
-		return String.format("capture_%d_%s_%s.png", this.time, LocalDate.now(), LocalTime.now());
+		return String.format("capture_%d_%s_%s.png", this.time, LocalDate.now(),
+				LocalTime.now().toString().replace(":", "_"));
 	}
 }
