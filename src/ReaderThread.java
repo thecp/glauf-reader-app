@@ -117,9 +117,10 @@ public class ReaderThread implements Runnable {
 			// TODO make this configurable
 			this.reader.Connect(CAENRFIDPort.CAENRFID_TCP, "192.168.0.7:23");
 
+			// just to make sure, cancel all event inventory stuff
+			this.reader.InventoryAbort();
+
 //			myReader.addCAENRFIDEventListener(new EventListener());
-//			
-//			CAENRFIDLogicalSource[] sources = myReader.GetSources();
 
 //			byte[] mask = new byte[] {};
 //			short maskLength = 0;
@@ -127,13 +128,21 @@ public class ReaderThread implements Runnable {
 //			short flag = 0x0E;
 
 			this.source = reader.GetSource("Source_0");
-			source.SetQ_EPC_C1G2(2);
 
-//			String[] readPoints = myReader.GetReadPoints();
-//			for (int i = 0; i < readPoints.length; ++i) {
-//				CAENRFIDReadPointStatus r = myReader.GetReadPointStatus(readPoints[i]);
-//				System.out.println();
-//			}
+			// more cleanup
+			this.source.ClearBuffer();
+			this.source.ResetSession_EPC_C1G2();
+
+			// SET Q Level to 2 (3-6 tags)
+			this.source.SetQ_EPC_C1G2(2);
+
+			// enable all antennas
+			String[] readPoints = this.reader.GetReadPoints();
+			if (readPoints != null) {
+				for(int i = 0; i < readPoints.length; i++) {
+					this.source.AddReadPoint(readPoints[i]);
+				}
+			}
 
 //			source.addCAENRFIDEventListener(new MyEventListener());
 //			source.EventInventoryTag(mask, maskLength, position, flag);
