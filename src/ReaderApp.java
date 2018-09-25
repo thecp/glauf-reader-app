@@ -3,6 +3,7 @@ import java.net.ServerSocket;
 import java.util.List;
 import java.util.Timer;
 
+import com.caen.RFIDLibrary.CAENRFIDReadPointStatus;
 import com.github.sarxos.webcam.Webcam;
 
 public class ReaderApp implements AppListener, UpdateTimeListener, ReaderExceptionHandler {
@@ -84,6 +85,10 @@ public class ReaderApp implements AppListener, UpdateTimeListener, ReaderExcepti
 
 	public void addResult(int rfid, String result) {
 		this.window.addResult(rfid, result);
+	}
+
+	public void updateStatus(CAENRFIDReadPointStatus[] s) {
+		this.window.setStatus(s);
 	}
 
 	public void exit() {

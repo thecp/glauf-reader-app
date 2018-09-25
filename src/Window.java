@@ -1,3 +1,4 @@
+import java.awt.Color;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.List;
@@ -5,6 +6,7 @@ import java.util.List;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
@@ -12,6 +14,7 @@ import javax.swing.JTextField;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableModel;
 
+import com.caen.RFIDLibrary.CAENRFIDReadPointStatus;
 import com.github.sarxos.webcam.Webcam;
 
 public class Window implements ActionListener {
@@ -29,6 +32,8 @@ public class Window implements ActionListener {
 	public JScrollPane scrollPane;
 	public JTable resultTable;
 	private TableModel resultTableModel;
+
+	private JLabel[] statusList;
 
 	public AppListener app;
 
@@ -82,6 +87,17 @@ public class Window implements ActionListener {
 		this.scrollPane.setBounds(550, 250, 380, 400);
 		this.resultTable.setFillsViewportHeight(true);
 		this.frame.add(this.scrollPane);
+
+		this.statusList = new JLabel[] {
+				new JLabel("A1 •"),
+				new JLabel("A2 •"),
+				new JLabel("A3 •"),
+				new JLabel("A4 •")
+		};
+		for (int i = 0; i < this.statusList.length; ++i) {
+			this.statusList[i].setBounds(30, 500 + (i * 20), 40, 15);
+			this.frame.add(this.statusList[i]);
+		}
 
 		this.frame.setSize(1024, 800);
 		this.frame.setLayout(null);
@@ -147,6 +163,20 @@ public class Window implements ActionListener {
 			model.addRow(new String[] { Integer.toString(rfid), result });
 		} catch (Exception e) {
 			this.showMessage(e.getMessage());
+		}
+	}
+
+	public void setStatus(CAENRFIDReadPointStatus[] status) {
+		if (status != null) {
+			for (int i = 0; i < Math.min(status.length, this.statusList.length); i++) {
+				Color c = Color.red; // STATUS_BAD
+				if (status[i] == CAENRFIDReadPointStatus.STATUS_POOR) {
+					c = Color.orange;
+				} else if (status[i] == CAENRFIDReadPointStatus.STATUS_GOOD) {
+					c = Color.green;
+				}
+				this.statusList[i].setForeground(c);
+			}
 		}
 	}
 }

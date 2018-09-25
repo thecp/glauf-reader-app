@@ -13,6 +13,7 @@ import com.caen.RFIDLibrary.CAENRFIDException;
 import com.caen.RFIDLibrary.CAENRFIDLogicalSource;
 import com.caen.RFIDLibrary.CAENRFIDPort;
 import com.caen.RFIDLibrary.CAENRFIDProtocol;
+import com.caen.RFIDLibrary.CAENRFIDReadPointStatus;
 import com.caen.RFIDLibrary.CAENRFIDReader;
 import com.caen.RFIDLibrary.CAENRFIDTag;
 
@@ -20,16 +21,23 @@ public class ReaderThread implements Runnable {
 
 	private volatile boolean running = true;
 
-	private CAENRFIDReader reader;
+	private CAENRFIDReader reader = new CAENRFIDReader();
 	private CAENRFIDLogicalSource source = null;
+	String[] readPoints;
 
 	private int seconds;
+	private SimpleDateFormat sdf;
 
 	private AppListener app;
 
 	private Connection conn;
 
 	private List<Integer> knownIds = new ArrayList<Integer>();
+
+	public ReaderThread() {
+		this.sdf = new SimpleDateFormat("HH:mm:ss");
+		this.sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+	}
 
 	public void setTime(int seconds) {
 		this.seconds = seconds;
@@ -82,7 +90,7 @@ public class ReaderThread implements Runnable {
 		String user = "admin";
 		String password = "7911640";
 		try {
-			Class.forName("com.mysql.cj.jdbc.Driver").newInstance();
+			Class.forName("com.mysql.jdbc.Driver").newInstance();
 			this.conn = DriverManager.getConnection(url, user, password);
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -133,11 +141,12 @@ public class ReaderThread implements Runnable {
 			this.source.ClearBuffer();
 			this.source.ResetSession_EPC_C1G2();
 
-			// SET Q Level to 2 (3-6 tags)
-			this.source.SetQ_EPC_C1G2(2);
+			// SET Q Level to 3 (7-15 tags)
+			// TODO still not sure if Q2 or Q3
+			this.source.SetQ_EPC_C1G2(3);
 
 			// enable all antennas
-			String[] readPoints = this.reader.GetReadPoints();
+			this.readPoints = this.reader.GetReadPoints();
 			if (readPoints != null) {
 				for(int i = 0; i < readPoints.length; i++) {
 					this.source.AddReadPoint(readPoints[i]);
@@ -158,35 +167,60 @@ public class ReaderThread implements Runnable {
 		this.stopReader();
 	}
 
+	private void updateInformation() {
+		if (this.readPoints != null) {
+			CAENRFIDReadPointStatus[] s = new CAENRFIDReadPointStatus[this.readPoints.length];
+			for (int i = 0; i < this.readPoints.length; i++) {
+				try {
+					CAENRFIDReadPointStatus status = this.reader.GetReadPointStatus(this.readPoints[i]);
+					s[i] = status;
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+			this.app.updateStatus(s);
+		}
+	}
+
 	private void readTags() {
 		CAENRFIDTag[] rfidTags;
 		try {
 			if (this.source == null) {
 				return;
 			}
+
+			// FIXME still randomly throwing errors
 			rfidTags = this.source.InventoryTag();
-			if (rfidTags != null && this.seconds != 0) {
+
+			// TODO move seconds check up but first fix this random InventoryTag fails
+			if (rfidTags != null && this.seconds > 0) {
 				for (int i = 0; i < rfidTags.length; ++i) {
-					byte[] id = rfidTags[i].GetId();
+
+					// TODO this should usually be filtered out by the reader!
 					if (rfidTags[i].GetType() != CAENRFIDProtocol.CAENRFID_EPC_C1G2) {
 						// we are only using this type!
 						continue;
 					}
+
+					// TODO this should usually be filtered out by the reader!
+					byte[] id = rfidTags[i].GetId();
 					if (id[0] > 0) {
 						continue;
 					}
+
 					int chipID = this.getIdValue(id);
 					if (this.knownIds.contains(chipID)) {
 						continue;
 					}
 					this.knownIds.add(chipID);
+
+					// TODO these both could be slightly blocking, move them into own thread!
 					this.writeIntoFile(chipID);
 					this.writeIntoDB(chipID);
 
+					// TODO date calculation should be done in window...
 					Date date = new Date((long) (this.seconds * 1000));
-					SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
-					sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
-					this.app.addResult(chipID, sdf.format(date));
+					this.app.addResult(chipID, this.sdf.format(date));
 				}
 			}
 		} catch (Exception e) {
@@ -196,18 +230,26 @@ public class ReaderThread implements Runnable {
 	}
 
 	public void run() {
-		this.reader = new CAENRFIDReader();
 		this.openDBConnection();
 		this.startReader();
 
+		int loops = 0;
+		int timeout = 50;
+
 		while (this.running) {
 			try {
-				Thread.sleep(100);
+				Thread.sleep(timeout);
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 				this.app.onReaderException(e);
 			}
 			this.readTags();
+
+			// update info every 500ms
+			if (++loops == 10) {
+				this.updateInformation();
+				loops = 0;
+			}
 		}
 	}
 }
