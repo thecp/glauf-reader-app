@@ -100,6 +100,5 @@ public class ReaderApp implements AppListener, UpdateTimeListener, ReaderExcepti
 		System.out.println("shutdown");
 		this.readerThread.shutdown();
 		this.captureThread.shutdown();
-		System.exit(0);
 	}
 }
