@@ -89,10 +89,7 @@ public class Window implements ActionListener {
 		this.frame.add(this.scrollPane);
 
 		this.statusList = new JLabel[] {
-				new JLabel("A1 •"),
-				new JLabel("A2 •"),
-				new JLabel("A3 •"),
-				new JLabel("A4 •")
+				new JLabel("A1"), new JLabel("A2"), new JLabel("A3"), new JLabel("A4")
 		};
 		for (int i = 0; i < this.statusList.length; ++i) {
 			this.statusList[i].setBounds(30, 500 + (i * 20), 40, 15);
@@ -106,7 +103,7 @@ public class Window implements ActionListener {
 		this.frame.addWindowListener(new java.awt.event.WindowAdapter() {
 			@Override
 			public void windowClosing(java.awt.event.WindowEvent windowEvent) {
-				if (JOptionPane.showConfirmDialog(frame, "Möchtest du das Programm wirklich beenden?",
+				if (JOptionPane.showConfirmDialog(frame, "MÃ¶chtest du das Programm wirklich beenden?",
 						"Programm beenden", JOptionPane.YES_NO_OPTION,
 						JOptionPane.QUESTION_MESSAGE) == JOptionPane.YES_OPTION) {
 					System.exit(0);

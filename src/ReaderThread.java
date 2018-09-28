@@ -11,30 +11,33 @@ import java.util.TimeZone;
 
 import com.caen.RFIDLibrary.CAENRFIDException;
 import com.caen.RFIDLibrary.CAENRFIDLogicalSource;
+import com.caen.RFIDLibrary.CAENRFIDLogicalSourceConstants;
+import com.caen.RFIDLibrary.CAENRFIDNotify;
 import com.caen.RFIDLibrary.CAENRFIDPort;
 import com.caen.RFIDLibrary.CAENRFIDProtocol;
 import com.caen.RFIDLibrary.CAENRFIDReadPointStatus;
 import com.caen.RFIDLibrary.CAENRFIDReader;
-import com.caen.RFIDLibrary.CAENRFIDTag;
 
-public class ReaderThread implements Runnable {
+public class ReaderThread implements Runnable, ReaderEventHandler {
 
 	private volatile boolean running = true;
-
-	private CAENRFIDReader reader = new CAENRFIDReader();
-	private CAENRFIDLogicalSource source = null;
-	String[] readPoints;
-
 	private int seconds;
-	private SimpleDateFormat sdf;
-
-	private AppListener app;
-
-	private Connection conn;
-
 	private List<Integer> knownIds = new ArrayList<Integer>();
 
-	public ReaderThread() {
+	private CAENRFIDReader reader = new CAENRFIDReader();
+	private CAENRFIDLogicalSource source;
+	private ReaderEventListener readerEventListener;
+	private String[] readPoints;
+
+	private SimpleDateFormat sdf;
+	private AppListener app;
+	private Connection conn;
+
+	ReaderThread() {
+		this.readerEventListener = new ReaderEventListener();
+		this.readerEventListener.addReaderEventHandler(this);
+		this.reader.addCAENRFIDEventListener(this.readerEventListener);
+
 		this.sdf = new SimpleDateFormat("HH:mm:ss");
 		this.sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
 	}
@@ -47,25 +50,8 @@ public class ReaderThread implements Runnable {
 		this.app = listener;
 	}
 
-	private int getIdValue(byte[] id) {
-		int i = 0;
-		try {
-			for (int j = 0; j < id.length; ++j) {
-				String hex = Integer.toHexString(id[j]);
-				if (hex.length() > 2) {
-					hex = hex.substring(hex.length() - 2);
-				}
-				i += (Math.pow(100, id.length - j - 1)) * Integer.valueOf(hex);
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-			i = 0;
-		}
-		return i;
-	}
-
 	private void writeIntoDB(int chipID) {
-		if (this.seconds == 0) {
+		if (this.seconds == 0 || this.conn == null) {
 			return;
 		}
 		try {
@@ -113,6 +99,7 @@ public class ReaderThread implements Runnable {
 
 	public void stopReader() {
 		try {
+			this.reader.InventoryAbort();
 			this.reader.Disconnect();
 		} catch (CAENRFIDException e) {
 			e.printStackTrace();
@@ -128,13 +115,6 @@ public class ReaderThread implements Runnable {
 			// just to make sure, cancel all event inventory stuff
 			this.reader.InventoryAbort();
 
-//			myReader.addCAENRFIDEventListener(new EventListener());
-
-//			byte[] mask = new byte[] {};
-//			short maskLength = 0;
-//			short position = 0;
-//			short flag = 0x0E;
-
 			this.source = reader.GetSource("Source_0");
 
 			// more cleanup
@@ -148,13 +128,20 @@ public class ReaderThread implements Runnable {
 			// enable all antennas
 			this.readPoints = this.reader.GetReadPoints();
 			if (readPoints != null) {
-				for(int i = 0; i < readPoints.length; i++) {
+				for (int i = 0; i < readPoints.length; i++) {
 					this.source.AddReadPoint(readPoints[i]);
 				}
 			}
 
-//			source.addCAENRFIDEventListener(new MyEventListener());
-//			source.EventInventoryTag(mask, maskLength, position, flag);
+			// TODO make these variables more strict to only read relevant numbers
+			byte[] mask = new byte[4];
+			short maskLength = 0x0;
+			short position = 0x0;
+			short flag = 0x06;
+
+			this.source.SetReadCycle(0); // endless loop o reading
+			this.source.SetSelected_EPC_C1G2(CAENRFIDLogicalSourceConstants.EPC_C1G2_All_SELECTED); // no tag filtering
+			this.source.EventInventoryTag(mask, maskLength, position, flag); // start the inventory continuous mode
 
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -182,74 +169,52 @@ public class ReaderThread implements Runnable {
 		}
 	}
 
-	private void readTags() {
-		CAENRFIDTag[] rfidTags;
-		try {
-			if (this.source == null) {
-				return;
-			}
-
-			// FIXME still randomly throwing errors
-			rfidTags = this.source.InventoryTag();
-
-			// TODO move seconds check up but first fix this random InventoryTag fails
-			if (rfidTags != null && this.seconds > 0) {
-				for (int i = 0; i < rfidTags.length; ++i) {
-
-					// TODO this should usually be filtered out by the reader!
-					if (rfidTags[i].GetType() != CAENRFIDProtocol.CAENRFID_EPC_C1G2) {
-						// we are only using this type!
-						continue;
-					}
-
-					// TODO this should usually be filtered out by the reader!
-					byte[] id = rfidTags[i].GetId();
-					if (id[0] > 0) {
-						continue;
-					}
-
-					int chipID = this.getIdValue(id);
-					if (this.knownIds.contains(chipID)) {
-						continue;
-					}
-					this.knownIds.add(chipID);
-
-					// TODO these both could be slightly blocking, move them into own thread!
-					this.writeIntoFile(chipID);
-					this.writeIntoDB(chipID);
-
-					// TODO date calculation should be done in window...
-					Date date = new Date((long) (this.seconds * 1000));
-					this.app.addResult(chipID, this.sdf.format(date));
-				}
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-			this.app.onReaderException(e);
+	public void handleReaderEvent(CAENRFIDNotify notifyEvent) {
+		if (this.seconds == 0) {
+			return;
 		}
+
+		// TODO this should usually be filtered out by the reader!
+		if (notifyEvent.getTagType() != CAENRFIDProtocol.CAENRFID_EPC_C1G2) {
+			// we are only using this type!
+			return;
+		}
+
+		// TODO this should usually be filtered out by the reader!
+		byte[] id = notifyEvent.getTagID();
+		if (id[0] > 0) {
+			return;
+		}
+
+		int chipID = Helper.getIdFromByteArray(id);
+		if (this.knownIds.contains(chipID)) {
+			return;
+		}
+		this.knownIds.add(chipID);
+
+		// TODO these both could be slightly blocking, move them into own thread!
+		this.writeIntoFile(chipID);
+		this.writeIntoDB(chipID);
+
+		// TODO date calculation should be done in window...
+		Date date = new Date((long) (this.seconds * 1000));
+		this.app.addResult(chipID, this.sdf.format(date));
 	}
 
 	public void run() {
 		this.openDBConnection();
 		this.startReader();
 
-		int loops = 0;
-		int timeout = 50;
-
 		while (this.running) {
+			// this.updateInformation();
+			// FIXME, not possible as long as there is continuous inventory in progress
 			try {
-				Thread.sleep(timeout);
+				Thread.sleep(1000);
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 				this.app.onReaderException(e);
 			}
-			this.readTags();
-
-			// update info every 500ms
-			if (++loops == 10) {
-				this.updateInformation();
-				loops = 0;
-			}
 		}
+
 	}
 }
