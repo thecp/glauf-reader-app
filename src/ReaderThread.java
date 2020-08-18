@@ -1,100 +1,44 @@
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
-import java.util.TimeZone;
+import java.util.Map;
 
 import com.caen.RFIDLibrary.CAENRFIDException;
 import com.caen.RFIDLibrary.CAENRFIDLogicalSource;
 import com.caen.RFIDLibrary.CAENRFIDLogicalSourceConstants;
 import com.caen.RFIDLibrary.CAENRFIDNotify;
 import com.caen.RFIDLibrary.CAENRFIDPort;
-import com.caen.RFIDLibrary.CAENRFIDProtocol;
 import com.caen.RFIDLibrary.CAENRFIDReadPointStatus;
 import com.caen.RFIDLibrary.CAENRFIDReader;
 
 public class ReaderThread implements Runnable, ReaderEventHandler {
 
 	private volatile boolean running = true;
-	private int seconds;
-	private List<Integer> knownIds = new ArrayList<Integer>();
+	private DataThread dataThread;
+
+	private RTimer[] rTimers;
+
+	private List<Integer> knownStnos = new ArrayList<Integer>();
+	private Map<String, Integer> idMapping;
 
 	private CAENRFIDReader reader = new CAENRFIDReader();
 	private CAENRFIDLogicalSource source;
 	private ReaderEventListener readerEventListener;
 	private String[] readPoints;
 
-	private SimpleDateFormat sdf;
 	private AppListener app;
-	private Connection conn;
 
 	ReaderThread() {
 		this.readerEventListener = new ReaderEventListener();
 		this.readerEventListener.addReaderEventHandler(this);
 		this.reader.addCAENRFIDEventListener(this.readerEventListener);
-
-		this.sdf = new SimpleDateFormat("HH:mm:ss");
-		this.sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
-	}
-
-	public void setTime(int seconds) {
-		this.seconds = seconds;
 	}
 
 	public void addListener(AppListener listener) {
 		this.app = listener;
 	}
 
-	private void writeIntoDB(int chipID) {
-		if (this.seconds == 0 || this.conn == null) {
-			return;
-		}
-		try {
-			PreparedStatement stmt = this.conn
-					.prepareStatement("INSERT INTO starters (seconds, time, rfid) VALUES (?, SEC_TO_TIME(?), ?) "
-							+ "ON DUPLICATE KEY UPDATE seconds=?, time=SEC_TO_TIME(?);");
-			stmt.setInt(1, this.seconds);
-			stmt.setInt(2, this.seconds);
-			stmt.setInt(3, chipID);
-			stmt.setInt(4, this.seconds);
-			stmt.setInt(5, this.seconds);
-			stmt.executeUpdate();
-		} catch (Exception e) {
-			e.printStackTrace();
-			this.app.onReaderException(e);
-		}
-	}
-
-	private void openDBConnection() {
-		String ssl = ""; // "&verifyServerCertificate=false&useSSL=true";
-		String url = "jdbc:mysql://localhost:3306/zmt?serverTimezone=Europe/Berlin" + ssl;
-		String user = "admin";
-		String password = "7911640";
-		try {
-			Class.forName("com.mysql.jdbc.Driver").newInstance();
-			this.conn = DriverManager.getConnection(url, user, password);
-		} catch (Exception e) {
-			e.printStackTrace();
-			this.app.onReaderException(e);
-		}
-	}
-
-	private void writeIntoFile(int chipId) {
-		try {
-			BufferedWriter bw = new BufferedWriter(new FileWriter("backup.tmp", true));
-			bw.write(chipId + ";" + this.seconds + ";");
-			bw.newLine();
-			bw.flush();
-			bw.close();
-		} catch (Exception e) {
-			e.printStackTrace();
-			this.app.onReaderException(e);
-		}
+	public void setTimers(RTimer[] rTimers) {
+		this.rTimers = rTimers;
 	}
 
 	public void stopReader() {
@@ -139,7 +83,7 @@ public class ReaderThread implements Runnable, ReaderEventHandler {
 			short position = 0x0;
 			short flag = 0x06;
 
-			this.source.SetReadCycle(0); // endless loop o reading
+			this.source.SetReadCycle(0); // endless loop of reading
 			this.source.SetSelected_EPC_C1G2(CAENRFIDLogicalSourceConstants.EPC_C1G2_All_SELECTED); // no tag filtering
 			this.source.EventInventoryTag(mask, maskLength, position, flag); // start the inventory continuous mode
 
@@ -152,6 +96,7 @@ public class ReaderThread implements Runnable, ReaderEventHandler {
 	public void shutdown() {
 		this.running = false;
 		this.stopReader();
+		this.dataThread.stop();
 	}
 
 	private void updateInformation() {
@@ -170,39 +115,46 @@ public class ReaderThread implements Runnable, ReaderEventHandler {
 	}
 
 	public void handleReaderEvent(CAENRFIDNotify notifyEvent) {
-		if (this.seconds == 0) {
-			return;
-		}
+//		TODO this should usually be filtered out by the reader!
+//		if (notifyEvent.getTagType() != CAENRFIDProtocol.CAENRFID_EPC_C1G2) {
+//		we are only using this type!
+//		return;
+//		}
 
-		// TODO this should usually be filtered out by the reader!
-		if (notifyEvent.getTagType() != CAENRFIDProtocol.CAENRFID_EPC_C1G2) {
-			// we are only using this type!
-			return;
-		}
-
-		// TODO this should usually be filtered out by the reader!
+// 		TODO this should usually be filtered out by the reader!
 		byte[] id = notifyEvent.getTagID();
-		if (id[0] > 0) {
+//		if (id[0] > 0) {
+//			return;
+//		}
+
+		String strID = Helper.getIdFromByteArrayNew(id);
+		Integer stno = this.idMapping.get(strID);
+		if (stno == null) {
+			System.out.println("Warning, unknown id: " + strID);
 			return;
 		}
 
-		int chipID = Helper.getIdFromByteArray(id);
-		if (this.knownIds.contains(chipID)) {
+		if (this.knownStnos.contains(stno)) {
 			return;
 		}
-		this.knownIds.add(chipID);
 
-		// TODO these both could be slightly blocking, move them into own thread!
-		this.writeIntoFile(chipID);
-		this.writeIntoDB(chipID);
+		int seconds = this.getSecondsForStno(stno);
+		if (seconds == 0) {
+			return;
+		}
 
-		// TODO date calculation should be done in window...
-		Date date = new Date((long) (this.seconds * 1000));
-		this.app.addResult(chipID, this.sdf.format(date));
+		this.knownStnos.add(stno);
+		this.dataThread.write(stno, seconds);
+		this.app.addResult(stno, seconds);
 	}
 
 	public void run() {
-		this.openDBConnection();
+		this.dataThread = new DataThread();
+		this.dataThread.addListener(this.app);
+		Thread dt = new Thread(this.dataThread);
+		dt.start();
+		this.idMapping = this.dataThread.getStnoMappings();
+
 		this.startReader();
 
 		while (this.running) {
@@ -215,6 +167,20 @@ public class ReaderThread implements Runnable, ReaderEventHandler {
 				this.app.onReaderException(e);
 			}
 		}
+	}
 
+	public int getSecondsForStno(int stno) {
+		if (this.rTimers == null) {
+			return 0;
+		}
+		for (int i = 0; i < 3; i++) {
+			if (this.rTimers[i] == null) {
+				return 0;
+			}
+			if (this.rTimers[i].min <= stno && this.rTimers[i].max >= stno) {
+				return this.rTimers[i].seconds;
+			}
+		}
+		return 0;
 	}
 }

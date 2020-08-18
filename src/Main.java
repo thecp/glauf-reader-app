@@ -3,25 +3,19 @@ import com.caen.RFIDLibrary.CAENRFIDReadPointStatus;
 import com.github.sarxos.webcam.Webcam;
 
 interface AppListener extends ReaderExceptionHandler {
-	void startTimer(int t);
-
-	void pauseTimer();
-
-	void resetTimer();
-
 	void startCapture(Webcam w);
 
 	void stopCapture();
 
 	void exit();
 
-	void addResult(int rfid, String result);
+	void addResult(int rfid, int seconds);
 
 	void updateStatus(CAENRFIDReadPointStatus[] s);
 }
 
 interface UpdateTimeListener {
-	void updateTime(int t);
+	void updateTime(int t, int i);
 }
 
 interface ReaderExceptionHandler {

@@ -12,7 +12,6 @@ public class CaptureThread implements Runnable {
 	private volatile boolean running = true;
 
 	private Webcam webcam = null;
-	private int time = 0;
 	private boolean capturing = false;
 
 	private ReaderExceptionHandler readerExceptionHandler;
@@ -38,26 +37,21 @@ public class CaptureThread implements Runnable {
 		running = false;
 	}
 
-	public void updateTime(int t) {
-		this.time = t;
-		if (this.capturing) {
-			this.capture();
-		}
-	}
-
 	public void run() {
 		while (running) {
 			try {
-				Thread.sleep(100);
+				Thread.sleep(1000);
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 				this.readerExceptionHandler.onReaderException(e);
 			}
+
+			this.capture();
 		}
 	}
 
 	private void capture() {
-		if (this.webcam != null && this.time != 0) {
+		if (this.webcam != null && this.capturing) {
 			BufferedImage image = this.webcam.getImage();
 			try {
 				ImageIO.write(image, "PNG", new File(this.getFileName()));
@@ -69,7 +63,6 @@ public class CaptureThread implements Runnable {
 	}
 
 	private String getFileName() {
-		return String.format("capture_%d_%s_%s.png", this.time, LocalDate.now(),
-				LocalTime.now().toString().replace(":", "_"));
+		return String.format("capture_%s_%s.png", LocalDate.now(), LocalTime.now().toString().replace(":", "_"));
 	}
 }

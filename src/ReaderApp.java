@@ -1,42 +1,26 @@
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
-import java.util.Timer;
+import java.util.TimeZone;
 
 import com.caen.RFIDLibrary.CAENRFIDReadPointStatus;
 import com.github.sarxos.webcam.Webcam;
 
 public class ReaderApp implements AppListener, UpdateTimeListener, ReaderExceptionHandler {
 
-	int seconds = 0;
 	private Window window;
 	private ReaderThread readerThread;
 	private CaptureThread captureThread;
 
-	private RTimerTask timerTask;
-	private Timer timer;
+	private RTimer[] rTimers;
 
 	private ServerSocket socket;
 
 	private List<Webcam> webcams;
 
-	public void startTimer(int seconds) {
-		this.timerTask = new RTimerTask();
-		this.timerTask.addListener(this);
-		this.timerTask.init(seconds);
-		this.timer = new Timer();
-		this.timer.scheduleAtFixedRate(timerTask, 1000, 1000);
-	}
-
-	public void pauseTimer() {
-		this.timer.cancel();
-		this.timer.purge();
-	}
-
-	public void resetTimer() {
-		this.seconds = 0;
-		this.updateTime(0);
-	}
+	private SimpleDateFormat sdf;
 
 	public void startCapture(Webcam w) {
 		this.captureThread.setCam(w);
@@ -52,18 +36,28 @@ public class ReaderApp implements AppListener, UpdateTimeListener, ReaderExcepti
 		try {
 			this.socket = new ServerSocket(11333);
 		} catch (IOException e) {
-			// port already used: exit application
-			this.exit();
+			System.out.println("port in use");
+			System.exit(1);
 		}
 
 		this.window = new Window();
 		this.window.addListener(this);
+
+		this.sdf = new SimpleDateFormat("HH:mm:ss");
+		this.sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
 
 		this.webcams = Webcam.getWebcams();
 		this.window.setCams(this.webcams);
 
 		this.readerThread = new ReaderThread();
 		this.readerThread.addListener(this);
+
+		this.rTimers = new RTimer[3];
+		this.rTimers[0] = new RTimer(0, this, "HM", 501, 800);
+		this.rTimers[1] = new RTimer(1, this, "11.5km", 251, 500);
+		this.rTimers[2] = new RTimer(2, this, "6.5km", 1, 250);
+		this.window.setTimers(this.rTimers);
+		this.readerThread.setTimers(this.rTimers);
 
 		Thread rt = new Thread(this.readerThread);
 		rt.start();
@@ -73,18 +67,18 @@ public class ReaderApp implements AppListener, UpdateTimeListener, ReaderExcepti
 		ct.start();
 	}
 
-	public void updateTime(int t) {
-		this.window.setTime(t);
-		this.readerThread.setTime(t);
-		this.captureThread.updateTime(t);
+	public void updateTime(int t, int i) {
+		this.window.setTime(t, i);
+		this.rTimers[i].seconds = t;
 	}
 
 	public void onReaderException(Exception e) {
 		this.window.showMessage(e.getMessage());
 	}
 
-	public void addResult(int rfid, String result) {
-		this.window.addResult(rfid, result);
+	public void addResult(int rfid, int seconds) {
+		Date date = new Date((long) (seconds * 1000));
+		this.window.addResult(rfid, this.sdf.format(date));
 	}
 
 	public void updateStatus(CAENRFIDReadPointStatus[] s) {

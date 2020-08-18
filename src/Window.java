@@ -20,10 +20,17 @@ import com.github.sarxos.webcam.Webcam;
 public class Window implements ActionListener {
 
 	public JFrame frame;
-	public JTextField timeText;
-	public JButton startTimerButton;
-	public JButton pauseTimerButton;
-	public JButton resetTimerButton;
+
+	public JTextField[] timeTexts;
+//	public JTextField[] minTexts;
+//	public JTextField[] maxTexts;
+	public JLabel[] minTexts;
+	public JLabel[] maxTexts;
+	public JLabel[] trackTexts;
+//	public JButton[] setRangeButtons;
+	public JButton[] startTimerButtons;
+	public JButton[] pauseTimerButtons;
+	public JButton[] resetTimerButtons;
 
 	public JComboBox<Webcam> webcams;
 	public JButton startCaptureButton;
@@ -37,29 +44,74 @@ public class Window implements ActionListener {
 
 	public AppListener app;
 
-	private int seconds = 0;
+	private RTimer[] rTimers;
 
 	public void addListener(AppListener app) {
 		this.app = app;
 	}
 
+	public void setTimers(RTimer[] rTimers) {
+		this.rTimers = rTimers;
+		for (int i = 0; i < 3; i++) {
+			this.minTexts[i].setText("" + rTimers[i].min);
+			this.maxTexts[i].setText("" + rTimers[i].max);
+			this.trackTexts[i].setText(rTimers[i].track);
+		}
+	}
+
 	public Window() {
 		this.frame = new JFrame();
 
-		this.startTimerButton = new JButton("Start Timer");
-		this.startTimerButton.setBounds(80, 100, 120, 40);
-		this.startTimerButton.addActionListener(this);
-		this.frame.add(this.startTimerButton);
+		this.timeTexts = new JTextField[3];
+//		this.minTexts = new JTextField[3];
+//		this.maxTexts = new JTextField[3];
+		this.minTexts = new JLabel[3];
+		this.maxTexts = new JLabel[3];
+		this.trackTexts = new JLabel[3];
+		this.startTimerButtons = new JButton[3];
+		this.pauseTimerButtons = new JButton[3];
+		this.resetTimerButtons = new JButton[3];
+//		this.setRangeButtons = new JButton[3];
 
-		this.pauseTimerButton = new JButton("Pause Timer");
-		this.pauseTimerButton.setBounds(210, 100, 120, 40);
-		this.pauseTimerButton.addActionListener(this);
-		this.frame.add(this.pauseTimerButton);
+		for (int i = 0; i < 3; i++) {
+			int yOffset = (i * 140) + 100;
 
-		this.resetTimerButton = new JButton("Reset Timer");
-		this.resetTimerButton.setBounds(340, 100, 120, 40);
-		this.resetTimerButton.addActionListener(this);
-		this.frame.add(this.resetTimerButton);
+			this.startTimerButtons[i] = new JButton("Start Timer");
+			this.startTimerButtons[i].setBounds(80, yOffset, 120, 40);
+			this.startTimerButtons[i].addActionListener(this);
+			this.frame.add(this.startTimerButtons[i]);
+
+			this.pauseTimerButtons[i] = new JButton("Pause Timer");
+			this.pauseTimerButtons[i].setBounds(210, yOffset, 120, 40);
+			this.pauseTimerButtons[i].addActionListener(this);
+			this.frame.add(this.pauseTimerButtons[i]);
+
+			this.resetTimerButtons[i] = new JButton("Reset Timer");
+			this.resetTimerButtons[i].setBounds(340, yOffset, 120, 40);
+			this.resetTimerButtons[i].addActionListener(this);
+			this.frame.add(this.resetTimerButtons[i]);
+
+			this.timeTexts[i] = new JTextField("0");
+			this.timeTexts[i].setBounds(80, yOffset + 60, 120, 40);
+			this.frame.add(this.timeTexts[i]);
+
+			this.minTexts[i] = new JLabel("");
+			this.minTexts[i].setBounds(220, yOffset + 60, 80, 40);
+			this.frame.add(this.minTexts[i]);
+
+			this.maxTexts[i] = new JLabel("");
+			this.maxTexts[i].setBounds(310, yOffset + 60, 80, 40);
+			this.frame.add(this.maxTexts[i]);
+
+			this.trackTexts[i] = new JLabel("");
+			this.trackTexts[i].setBounds(400, yOffset + 60, 80, 40);
+			this.frame.add(this.trackTexts[i]);
+
+//			this.setRangeButtons[i] = new JButton("Set");
+//			this.setRangeButtons[i].setBounds(400, yOffset + 60, 60, 40);
+//			this.setRangeButtons[i].addActionListener(this);
+//			this.frame.add(this.setRangeButtons[i]);
+		}
 
 		this.webcams = new JComboBox<Webcam>();
 		this.webcams.addActionListener(this);
@@ -76,10 +128,6 @@ public class Window implements ActionListener {
 		this.stopCaptureButton.addActionListener(this);
 		this.frame.add(this.stopCaptureButton);
 
-		this.timeText = new JTextField(this.seconds + "");
-		this.timeText.setBounds(80, 200, 100, 40);
-		this.frame.add(this.timeText);
-
 		this.resultTableModel = new DefaultTableModel(new String[][] {}, new String[] { "rfid", "result" });
 		this.resultTable = new JTable(this.resultTableModel);
 
@@ -88,11 +136,9 @@ public class Window implements ActionListener {
 		this.resultTable.setFillsViewportHeight(true);
 		this.frame.add(this.scrollPane);
 
-		this.statusList = new JLabel[] {
-				new JLabel("A1"), new JLabel("A2"), new JLabel("A3"), new JLabel("A4")
-		};
+		this.statusList = new JLabel[] { new JLabel("A1"), new JLabel("A2"), new JLabel("A3"), new JLabel("A4") };
 		for (int i = 0; i < this.statusList.length; ++i) {
-			this.statusList[i].setBounds(30, 500 + (i * 20), 40, 15);
+			this.statusList[i].setBounds(80, 550 + (i * 20), 40, 15);
 			this.frame.add(this.statusList[i]);
 		}
 
@@ -103,7 +149,7 @@ public class Window implements ActionListener {
 		this.frame.addWindowListener(new java.awt.event.WindowAdapter() {
 			@Override
 			public void windowClosing(java.awt.event.WindowEvent windowEvent) {
-				if (JOptionPane.showConfirmDialog(frame, "MÃ¶chtest du das Programm wirklich beenden?",
+				if (JOptionPane.showConfirmDialog(frame, "Möchtest du das Programm wirklich beenden?",
 						"Programm beenden", JOptionPane.YES_NO_OPTION,
 						JOptionPane.QUESTION_MESSAGE) == JOptionPane.YES_OPTION) {
 					System.exit(0);
@@ -114,22 +160,40 @@ public class Window implements ActionListener {
 	}
 
 	public void actionPerformed(ActionEvent ae) {
-		if (ae.getSource() == this.startTimerButton) {
-			if (this.seconds == 0) {
-				try {
-					this.seconds = Integer.parseInt(this.timeText.getText());
-				} catch (Exception e) {
-
-					this.seconds = 0;
+		for (int i = 0; i < 3; i++) {
+			if (ae.getSource() == this.startTimerButtons[i]) {
+				if (this.rTimers[i].seconds == 0) {
+					try {
+						String text = this.timeTexts[i].getText();
+						if (text.matches("^[0-9]{2}:[0-9]{2}:[0-9]{2}$")) {
+							this.rTimers[i].seconds = Helper.timeToInt(text);
+						} else if (text.matches("^[0-9]+$")) {
+							this.rTimers[i].seconds = Integer.parseInt(text);
+						} else {
+							throw new Exception("Zeitformat nicht valide!!!");
+						}
+					} catch (Exception e) {
+						this.rTimers[i].seconds = 0;
+					}
+					this.rTimers[i].startTimer();
 				}
-				this.app.startTimer(this.seconds);
 			}
-		}
-		if (ae.getSource() == this.pauseTimerButton) {
-			this.app.pauseTimer();
-		}
-		if (ae.getSource() == this.resetTimerButton) {
-			this.app.resetTimer();
+			if (ae.getSource() == this.pauseTimerButtons[i]) {
+				this.rTimers[i].pauseTimer();
+			}
+			if (ae.getSource() == this.resetTimerButtons[i]) {
+				if (this.rTimers[i].resetTimer()) {
+					this.timeTexts[i].setText("0");
+				}
+			}
+//			if (ae.getSource() == this.setRangeButtons[i]) {
+//				try {
+//					this.rTimers[i].min = Integer.parseInt(this.minTexts[i].getText());
+//					this.rTimers[i].max = Integer.parseInt(this.maxTexts[i].getText());
+//				} catch (Exception e) {
+//					this.app.onReaderException(e);
+//				}
+//			}
 		}
 		if (ae.getSource() == this.startCaptureButton) {
 			this.app.startCapture((Webcam) this.webcams.getSelectedItem());
@@ -139,9 +203,9 @@ public class Window implements ActionListener {
 		}
 	}
 
-	public void setTime(int seconds) {
-		this.seconds = seconds;
-		this.timeText.setText(seconds + "");
+	public void setTime(int seconds, int i) {
+		this.rTimers[i].seconds = seconds;
+		this.timeTexts[i].setText(Helper.intToTime(seconds));
 	}
 
 	public void showMessage(String msg) {
